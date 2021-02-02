@@ -1,16 +1,23 @@
-#!/usr/bin/env nextflow
-fasta_ch1 = Channel.fromPath('subreads.fasta.fofn')
-fasta_ch2 = Channel.fromPath('subreads.fasta.fofn')
-fasta_ch3 = Channel.fromPath('subreads.fasta.fofn')
+subreads_ch = Channel.fromPath('subreads.fasta.fofn').first()
 bam_ch = Channel.fromPath('subreads.bam.fofn')
 hic_ch = Channel.fromPath('F1_bull_test.HiC_R*.fastq.gz')
-dir = "/group/$PAWSEY_PROJECT/$USER/dunnart/"
+dir = $workflow.launchDir
+
+publish_dir = dir + "/publish"
 
 process fc_run {
-    publishDir "${dir}"
+    publishDir "${publish_dir}"
+
+    // TODO: Set something that makes sense here!
+    cpus 4
+    memory '8 GB'
+    time '8h'
+
+    // Load into anaconda
+    conda 'pb-assembly.yml'
 
     input:
-        file x from fasta_ch1
+        file x from subreads_ch
 
     output:
         file("0-rawreads/") into (rawreads1, rawreads2)
@@ -19,20 +26,30 @@ process fc_run {
 
     script:
         """
-        sed -i "s/outs.write('/#outs.write('/" ${dir}/nf-work/conda/*/lib/python3.7/site-packages/falcon_kit/mains/ovlp_filter.py
-        fc_run ${dir}/fc_run.cfg
+        sed -i "s/outs.write('/#outs.write('/" ${workflow.workDir}/conda/*/lib/python3.7/site-packages/falcon_kit/mains/ovlp_filter.py
+        fc_run ${workflow.launchDir}/fc_run.cfg
         """
 }
 
 process fc_unzip {
-    publishDir "${dir}"
+    publishDir "${publish_dir}"
+
+    // TODO: Set something that makes sense here!
+    cpus 4
+    memory '8 GB'
+    time '8h'
+
+    module 'anaconda'
+
+    // Load into anaconda
+    conda 'pb-assembly.yml'
 
     input:
         file x from rawreads1
         file x from preads1
         file x from asm1
         file x from bam_ch
-        file x from fasta_ch2
+        file x from subreads_ch
 
     output:
         file("3-unzip/*") into unzip
@@ -44,7 +61,17 @@ process fc_unzip {
         """
 }
 process fc_phase {
-    publishDir "${dir}"
+    publishDir "${publish_dir}"
+
+    // TODO: Set something that makes sense here!
+    cpus 4
+    memory '8 GB'
+    time '8h'
+
+    module 'anaconda'
+
+    // Load into anaconda
+    conda 'pb-assembly.yml'
     
     input:
         file x from rawreads2
@@ -53,13 +80,13 @@ process fc_phase {
         file("3-unzip/") from unzip
         file("4-polish/") from polish
         file x from hic_ch
-        file x from fasta_ch3
+        file x from subreads_ch
     
     output:
         file("5-phase/*") into phase
 
     script:
         """
-        fc_phase.py ${dir}/fc_phase.cfg &> run2.std
+        fc_phase.py ${workflow.launchDir}/fc_phase.cfg &> run2.std
         """
 }
